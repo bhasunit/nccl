@@ -89,9 +89,10 @@ ncclResult_t ncclTopoSearchInit(struct ncclTopoSystem* system);
 #define NCCL_TOPO_PATTERN_RING 4            // Ring
 #define NCCL_TOPO_PATTERN_NVLS 5            // NVLS+SHARP and NVLS+Tree
 #define NCCL_TOPO_PATTERN_COLLNET_DIRECT 6  // Collnet Direct
+#define NCCL_TOPO_PATTERN_PAT  7            // PAT
 struct ncclTopoGraph {
   // Input / output
-  int id; // ring : 0, tree : 1, collnet : 2, nvls : 3, collnetDirect : 4
+  int id; // ring : 0, tree : 1, collnet : 2, nvls : 3, collnetDirect : 4, pat: 5
   int pattern;
   int crossNic;
   int collNet;

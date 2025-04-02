@@ -681,10 +681,11 @@ static ncclResult_t initTransportsRank(struct ncclComm* comm, struct ncclComm* p
   cpu_set_t affinitySave;
   struct ncclTopoGraph* ringGraph = &comm->graphs[NCCL_ALGO_RING];
   struct ncclTopoGraph* treeGraph = &comm->graphs[NCCL_ALGO_TREE];
+  struct ncclTopoGraph* patGraph = &comm->graphs[NCCL_ALGO_PAT];
   struct ncclTopoGraph* collNetChainGraph = &comm->graphs[NCCL_ALGO_COLLNET_CHAIN];
   struct ncclTopoGraph* collNetDirectGraph = &comm->graphs[NCCL_ALGO_COLLNET_DIRECT];
   struct ncclTopoGraph* nvlsGraph = &comm->graphs[NCCL_ALGO_NVLS];
-  struct ncclTopoGraph* graphs[NCCL_NUM_ALGORITHMS] = { treeGraph, ringGraph, collNetDirectGraph, collNetChainGraph, nvlsGraph, nvlsGraph, treeGraph };
+  struct ncclTopoGraph* graphs[NCCL_NUM_ALGORITHMS] = { treeGraph, ringGraph, collNetDirectGraph, collNetChainGraph, nvlsGraph, nvlsGraph, patGraph };
 
   struct graphInfo {
     int pattern;
@@ -889,14 +890,23 @@ static ncclResult_t initTransportsRank(struct ncclComm* comm, struct ncclComm* p
     NCCLCHECKGOTO(ncclTopoCompute(comm->topo, nvlsGraph), ret, fail);
     NCCLCHECKGOTO(ncclTopoPrintGraph(comm->topo, nvlsGraph), ret, fail);
   }
+
+  memset(patGraph, 0, sizeof(struct ncclTopoGraph));
+  patGraph->id = 5;
+  patGraph->pattern = NCCL_TOPO_PATTERN_PAT;
+  patGraph->minChannels = ringGraph->nChannels;
+  patGraph->maxChannels = ringGraph->nChannels;
+  NCCLCHECKGOTO(ncclTopoCompute(comm->topo, patGraph), ret, fail);
+  NCCLCHECKGOTO(ncclTopoPrintGraph(comm->topo, patGraph), ret, fail);
+
   timers[TIMER_INIT_GRAPHS] = clockNano() - timers[TIMER_INIT_GRAPHS];
 
   // Initialize num P2P LL buffers for this communicator
   comm->allocP2pNetLLBuffers = ncclParamAllocP2pNetLLBuffers() == 1;
 
   if (comm->rank == ncclParamGraphDumpFileRank()) {
-    struct ncclTopoGraph* dumpGraphs[5] = { ringGraph, treeGraph, collNetDirectGraph, collNetChainGraph, nvlsGraph };
-    NCCLCHECKGOTO(ncclTopoDumpGraphs(comm->topo, 5, dumpGraphs), ret, fail);
+    struct ncclTopoGraph* dumpGraphs[6] = { ringGraph, treeGraph, collNetDirectGraph, collNetChainGraph, nvlsGraph, patGraph };
+    NCCLCHECKGOTO(ncclTopoDumpGraphs(comm->topo, 6, dumpGraphs), ret, fail);
   }
 
   // Because timers[[TIMER_INIT_ALLGATHER] already contains the timing of the first allgather,
