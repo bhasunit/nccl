@@ -9,6 +9,7 @@
 #include "graph.h"
 #include "proxy.h"
 #include "collectives.h"
+#include "histogram.h"
 #include "gdrwrap.h"
 #include "shmutils.h"
 #include "p2p.h"
@@ -1092,6 +1093,7 @@ static ncclResult_t recvProxyFree(struct ncclProxyConnection* connection, struct
 static_assert(NCCL_STEPS <= NCCL_NET_MAX_REQUESTS, "Not enough net requests to cover for steps");
 
 static ncclResult_t sendProxyProgress(struct ncclProxyState* proxyState, struct ncclProxyArgs* args) {
+  proxyState->send_proxy_progress_duration->start_timer();
   if (args->state == ncclProxyOpReady) {
     for (int s=0; s<args->nsubs; s++) {
       struct ncclProxySubArgs* sub = args->subs+s;
@@ -1193,7 +1195,9 @@ static ncclResult_t sendProxyProgress(struct ncclProxyState* proxyState, struct 
             // Coverity complains about the size here as pointing to an out-of-scope temporary.  Which is nonsense,
             // since size is a plain integer.
             // coverity[use_invalid:FALSE]
+            proxyState->isend_duration->start_timer();
             NCCLCHECK(proxyState->ncclNet->isend(resources->netSendComm, buff, size, resources->tpRank, sub->sendMhandle, sub, sub->requests+buffSlot));
+            proxyState->isend_duration->stop_timer();
             if (sub->requests[buffSlot] != NULL) {
               TRACE(NCCL_NET, "sendProxy [%ld/%d/%d] Isend posted, req %p, buff %p, size %d, proto %d, myRank %d, channelId %d, mhandle %p", sub->transmitted, buffSlot, sub->nsteps, sub->requests[buffSlot], buff, size, p, proxyState->tpRank, sub->channelId, sub->sendMhandle);
               sub->transSize += size;
@@ -1212,7 +1216,9 @@ static ncclResult_t sendProxyProgress(struct ncclProxyState* proxyState, struct 
         int done;
         int size;
         int buffSlot = (sub->base+sub->done)%NCCL_STEPS;
+        proxyState->test_duration->start_timer();
         NCCLCHECK(proxyState->ncclNet->test(sub->requests[buffSlot], &done, &size));
+        proxyState->test_duration->stop_timer();
         if (done) {
           // Make sure size is reset to -1 before we update the head.
           connFifo[buffSlot].size = -1;
@@ -1243,10 +1249,12 @@ static ncclResult_t sendProxyProgress(struct ncclProxyState* proxyState, struct 
       args->state = ncclProxyOpNone;
     }
   }
+  proxyState->send_proxy_progress_duration->stop_timer();
   return ncclSuccess;
 }
 
 static ncclResult_t recvProxyProgress(struct ncclProxyState* proxyState, struct ncclProxyArgs* args) {
+  proxyState->recv_proxy_progress_duration->start_timer();
   if (args->state == ncclProxyOpReady) {
     // Initialize subs and group them by same recvComm.
     void* recvComm;
@@ -1353,7 +1361,9 @@ static ncclResult_t recvProxyProgress(struct ncclProxyState* proxyState, struct 
         void** requestPtr = subGroup->requests+(step%NCCL_STEPS);
         bool ignoreCompletion = ncclParamNetOptionalRecvCompletion() && ((args->protocol == NCCL_PROTO_LL128) || (args->protocol == NCCL_PROTO_LL)) && (subCount == 1);
         if (ignoreCompletion) *requestPtr = (void *)NCCL_NET_OPTIONAL_RECV_COMPLETION;
+        proxyState->irecv_duration->start_timer();
         NCCLCHECK(proxyState->ncclNet->irecv(resources->netRecvComm, subCount, ptrs, sizes, tags, mhandles, phandles, requestPtr));
+        proxyState->irecv_duration->stop_timer();
         if (*requestPtr) {
           subGroup->recvRequestsCache[step%NCCL_STEPS] = *requestPtr;
           subGroup->recvRequestsSubCount = subCount;
@@ -1370,7 +1380,7 @@ static ncclResult_t recvProxyProgress(struct ncclProxyState* proxyState, struct 
         }
       }
     }
-    if (args->idle == 0) return ncclSuccess;
+    if (args->idle == 0) { proxyState->recv_proxy_progress_duration->stop_timer(); return ncclSuccess;}
 
     for (int s=0; s<args->nsubs; s+=args->subs[s].groupSize) {
       struct ncclProxySubArgs* subGroup = args->subs+s;
@@ -1381,7 +1391,9 @@ static ncclResult_t recvProxyProgress(struct ncclProxyState* proxyState, struct 
         int sizes[NCCL_PROXY_MAX_SUBS];
         void* mhandles[NCCL_PROXY_MAX_SUBS];
         for (int i=0; i<NCCL_PROXY_MAX_SUBS; i++) sizes[i] = 0;
+        proxyState->test_duration->start_timer();
         NCCLCHECK(proxyState->ncclNet->test(subGroup->requests[step%NCCL_STEPS], &done, sizes));
+        proxyState->test_duration->stop_timer();
         if (done) {
           int needFlush = 0;
           int totalSize = 0;
@@ -1444,7 +1456,7 @@ static ncclResult_t recvProxyProgress(struct ncclProxyState* proxyState, struct 
         }
       }
     }
-    if (args->idle == 0) return ncclSuccess;
+    if (args->idle == 0) {proxyState->recv_proxy_progress_duration->stop_timer(); return ncclSuccess; }
 
     for (int s=0; s<args->nsubs; s+=args->subs[s].groupSize) {
       struct ncclProxySubArgs* subGroup = args->subs+s;
@@ -1452,7 +1464,7 @@ static ncclResult_t recvProxyProgress(struct ncclProxyState* proxyState, struct 
         uint64_t step = subGroup->transmitted;
         int done = 1;
         void* request = subGroup->requests[step%NCCL_STEPS];
-        if (request) NCCLCHECK(proxyState->ncclNet->test(request, &done, NULL));
+        if (request) { proxyState->test_duration->start_timer(); NCCLCHECK(proxyState->ncclNet->test(request, &done, NULL)); proxyState->test_duration->stop_timer(); }
         if (done) {
           for (int i=0; i<subGroup->groupSize; i++) {
             struct ncclProxySubArgs* sub = subGroup + i;
@@ -1473,7 +1485,7 @@ static ncclResult_t recvProxyProgress(struct ncclProxyState* proxyState, struct 
         }
       }
     }
-    if (args->idle == 0) return ncclSuccess;
+    if (args->idle == 0) {proxyState->recv_proxy_progress_duration->stop_timer(); return ncclSuccess;}
 
     for (int s=0; s<args->nsubs; s+=args->subs[s].groupSize) {
       struct ncclProxySubArgs* subGroup = args->subs+s;
@@ -1515,6 +1527,7 @@ static ncclResult_t recvProxyProgress(struct ncclProxyState* proxyState, struct 
       }
     }
   }
+  proxyState->recv_proxy_progress_duration->stop_timer();
   return ncclSuccess;
 }
 

@@ -7,6 +7,7 @@
 #include "comm.h"
 #include "info.h"
 #include "collectives.h"
+#include "histogram.h"
 #include "socket.h"
 #include "shmutils.h"
 #include "profiler.h"
@@ -923,6 +924,11 @@ void* ncclProxyProgress(void *proxyState_) {
   int proxyOpAppendCounter = 0;
   do {
     int idle = 1;
+    if (state && state->active && state->active->state == ncclProxyOpProgress) {
+      proxyState->test_cq_drain_duration->start_timer();
+      proxyState->ncclNet->test(NULL, NULL, NULL);
+      proxyState->test_cq_drain_duration->stop_timer();
+    }
     ncclResult_t ret = progressOps(proxyState, state, state->active, &idle);
     if (ret != ncclSuccess) {
       __atomic_store_n(&proxyState->asyncResult, ret, __ATOMIC_RELEASE);
@@ -945,6 +951,7 @@ void* ncclProxyProgress(void *proxyState_) {
         INFO(NCCL_ALL,"%s:%d -> %d [Progress Thread]", __FILE__, __LINE__, ret);
       }
       if (added == 0) {
+        proxyState->thread_yield_count->insert(1);
         sched_yield(); // No request progressed. Let others run.
       }
     }
@@ -975,6 +982,15 @@ static ncclResult_t ncclProxyProgressCreate(struct ncclProxyState* proxyState) {
     PTHREADCHECK(pthread_create(&state->thread, NULL, ncclProxyProgress, proxyState), "pthread_create");
     ncclSetThreadName(state->thread, "NCCL Progress%2d", proxyState->tpLocalnRanks);
   }
+
+  static std::vector<size_t> bins = {0, 10, 256, 512, 768, 1024, 1280, 2048, 3072, 4096, 8152, 16384, 32768, 65536};
+  proxyState->test_duration = new timer_histogram<histogram_custom_binner<size_t> >("test() Duration", histogram_custom_binner<size_t>(bins));
+  proxyState->test_cq_drain_duration = new timer_histogram<histogram_custom_binner<size_t> >("test_cq_drain() Duration", histogram_custom_binner<size_t>(bins));
+  proxyState->isend_duration = new timer_histogram<histogram_custom_binner<size_t> >("isend() Duration", histogram_custom_binner<size_t>(bins));
+  proxyState->irecv_duration = new timer_histogram<histogram_custom_binner<size_t> >("irecv() Duration", histogram_custom_binner<size_t>(bins));
+  proxyState->send_proxy_progress_duration = new timer_histogram<histogram_custom_binner<size_t> >("sendProxyProgress() Duration", histogram_custom_binner<size_t>(bins));
+  proxyState->recv_proxy_progress_duration = new timer_histogram<histogram_custom_binner<size_t> >("recvProxyProgress() Duration", histogram_custom_binner<size_t>(bins));
+  proxyState->thread_yield_count = new histogram<size_t, histogram_linear_binner<size_t> >(std::string("thread yield count "), histogram_linear_binner<size_t>(0, 1, 16));
   return ncclSuccess;
 }
 
@@ -998,6 +1014,13 @@ ncclResult_t ncclProxyProgressDestroy(struct ncclProxyState* proxyState) {
   }
 
   TIME_PRINT("Proxy");
+  proxyState->test_duration->print_stats();
+  proxyState->test_cq_drain_duration->print_stats();
+  proxyState->isend_duration->print_stats();
+  proxyState->irecv_duration->print_stats();
+  proxyState->send_proxy_progress_duration->print_stats();
+  proxyState->recv_proxy_progress_duration->print_stats();
+  proxyState->thread_yield_count->print_stats();
   return ncclSuccess;
 }
 

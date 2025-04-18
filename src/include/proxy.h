@@ -16,6 +16,8 @@
 #include "shmutils.h"
 #include "p2p.h"
 #include "collectives.h"
+#include "histogram.h"
+#include "histogram_binner.h"
 
 typedef enum : uint8_t {
   ncclPatternRing,
@@ -329,6 +331,15 @@ struct ncclProxyState {
 
   // Queue of expected responses from the proxy
   struct ncclExpectedProxyResponse* expectedResponses;
+  timer_histogram<histogram_custom_binner<size_t> > *send_proxy_progress_duration;
+  timer_histogram<histogram_custom_binner<size_t> > *recv_proxy_progress_duration;
+  timer_histogram<histogram_custom_binner<size_t> > *test_duration;
+  timer_histogram<histogram_custom_binner<size_t> > *test_cq_drain_duration;
+  timer_histogram<histogram_custom_binner<size_t> > *isend_duration;
+  timer_histogram<histogram_custom_binner<size_t> > *irecv_duration;
+  timer_histogram<histogram_custom_binner<size_t> > *test_null_duration;
+  histogram<size_t, histogram_linear_binner<size_t> > *thread_yield_count;
+
 };
 
 enum proxyConnectState {

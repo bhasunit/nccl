@@ -371,7 +371,7 @@ void ncclResetDebugInit() {
   ncclDebugInit();
 }
 
-NCCL_PARAM(SetThreadName, "SET_THREAD_NAME", 0);
+NCCL_PARAM(SetThreadName, "SET_THREAD_NAME", 1);
 
 void ncclSetThreadName(pthread_t thread, const char *fmt, ...) {
   // pthread_setname_np is nonstandard GNU extension
