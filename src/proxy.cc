@@ -486,7 +486,9 @@ static ncclResult_t ncclLocalOpAppend(struct ncclComm* comm, struct ncclProxyCon
     proxyOps->freeOp = op->next;
   } else {
     int freeOp;
-    while ((freeOp = pool->freeOps[tpLocalRank]) == -1) sched_yield();
+    while ((freeOp = pool->freeOps[tpLocalRank]) == -1)
+    { //sched_yield();
+      }
     int freeOpNew;
     while ((freeOpNew = __sync_val_compare_and_swap(pool->freeOps+tpLocalRank, freeOp, -1)) != freeOp) freeOp = freeOpNew;
     opIndex = freeOp;
@@ -950,9 +952,11 @@ void* ncclProxyProgress(void *proxyState_) {
         __atomic_store_n(&proxyState->asyncResult, ret, __ATOMIC_RELEASE);
         INFO(NCCL_ALL,"%s:%d -> %d [Progress Thread]", __FILE__, __LINE__, ret);
       }
+
+
       if (added == 0) {
-        proxyState->thread_yield_count->insert(1);
-        sched_yield(); // No request progressed. Let others run.
+        //proxyState->thread_yield_count->insert(1);
+        //sched_yield(); // No request progressed. Let others run.
       }
     }
     lastIdle = idle;
@@ -990,7 +994,7 @@ static ncclResult_t ncclProxyProgressCreate(struct ncclProxyState* proxyState) {
   proxyState->irecv_duration = new timer_histogram<histogram_custom_binner<size_t> >("irecv() Duration", histogram_custom_binner<size_t>(bins));
   proxyState->send_proxy_progress_duration = new timer_histogram<histogram_custom_binner<size_t> >("sendProxyProgress() Duration", histogram_custom_binner<size_t>(bins));
   proxyState->recv_proxy_progress_duration = new timer_histogram<histogram_custom_binner<size_t> >("recvProxyProgress() Duration", histogram_custom_binner<size_t>(bins));
-  proxyState->thread_yield_count = new histogram<size_t, histogram_linear_binner<size_t> >(std::string("thread yield count "), histogram_linear_binner<size_t>(0, 1, 16));
+  proxyState->thread_yield_count = new histogram<size_t, histogram_linear_binner<size_t> >(std::string("thread yield count "), histogram_linear_binner<size_t>(0, 1, 192));
   return ncclSuccess;
 }
 

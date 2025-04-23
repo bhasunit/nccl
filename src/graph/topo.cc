@@ -1549,17 +1549,45 @@ ncclResult_t ncclTopoGetCpuAffinity(struct ncclTopoSystem* system, int rank, cpu
   if (ncclParamIgnoreCpuAffinity())
     // Ignore the CPU affinity set and use the GPU one instead
     finalMask = cpuMask;
-  else
+  else {
     // Use a subset of the GPU affinity set
     CPU_AND(&finalMask, &mask, &cpuMask);
+  }
+
+  cpu_set_t localMask;
+  cpu_set_t finalLocalMask;
+
+  uint8_t cpumasks[128];
+  memset(cpumasks, 0, sizeof(cpumasks));
+
+  // Dont use first and last core on a socket
+  int val[12] = {0, 1, 46, 47, 48, 49, 94, 95, 96, 97, 190, 191};
+  for (int i = 0; i < 128; i++) {
+    cpumasks[i] = 0xff;
+  }
+  for (int i = 0; i < 12; i++) {
+      int chunk = val[i] / 8;
+      int offset = val[i] % 8;
+      if (cpumasks[chunk])
+          cpumasks[chunk] &= ~(1 << offset);
+      else
+          cpumasks[chunk] = ~(1 << offset);
+  }
+
+
+  memcpy(&localMask, cpumasks, 128 *sizeof(uint8_t));
+  CPU_AND(&finalLocalMask, &localMask, &finalMask);
 
   memcpy(affinity, &finalMask, sizeof(cpu_set_t));
 
+  memcpy(affinity, &finalLocalMask, sizeof(cpu_set_t));
   // If there is a non empty set, use it to set affinity
   if (CPU_COUNT(&finalMask)) {
     char affinityStr[sizeof(cpu_set_t)*2];
     NCCLCHECK(ncclCpusetToStr(&finalMask, affinityStr));
-    INFO(NCCL_INIT, "Setting affinity for GPU %d to %s", gpu->gpu.dev, affinityStr);
+    char affinityStr1[sizeof(cpu_set_t)*2];
+    NCCLCHECK(ncclCpusetToStr(&finalLocalMask, affinityStr1));
+    INFO(NCCL_INIT, "Setting affinity for GPU %d to original %s new mask %s", gpu->gpu.dev, affinityStr, affinityStr1);
   }
   return ncclSuccess;
 }
