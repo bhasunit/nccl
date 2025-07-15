@@ -1491,6 +1491,9 @@ ncclResult_t getLocalNetCountByBw(struct ncclTopoSystem* system, int gpu, int *c
   return ncclSuccess;
 }
 
+// Temporarily set the default as 1 for p5en and p6
+NCCL_PARAM(MaxLocalNetPerGpu, "MAX_LOCAL_NET_PER_GPU", 1);
+
 ncclResult_t ncclTopoGetLocalNet(struct ncclTopoSystem* system, int rank, int channelId, int64_t* id, int* dev) {
   int gpu;
   NCCLCHECK(ncclTopoRankToIndex(system, rank, &gpu, /*showWarn=*/true));
@@ -1509,7 +1512,11 @@ ncclResult_t ncclTopoGetLocalNet(struct ncclTopoSystem* system, int rank, int ch
 
   int net = system->nodes[GPU].nodes[gpu].gpu.dev;
   if (isPow2(localNetCount)) net = mirrorBits(net, localNetCount);
-  net += channelId%(DIVUP(localNetCount,localGpuCount));
+  if (ncclParamMaxLocalNetPerGpu() > 0 && ncclParamMaxLocalNetPerGpu() < localNetCount) {
+    net += channelId%ncclParamMaxLocalNetPerGpu();
+  } else {
+    net += channelId%(DIVUP(localNetCount,localGpuCount));
+  }
   if (id) *id = system->nodes[NET].nodes[localNets[net%localNetCount]].id;
   if (dev) *dev = system->nodes[NET].nodes[localNets[net%localNetCount]].net.dev;
   return ncclSuccess;
