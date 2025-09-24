@@ -195,6 +195,12 @@ static const ncclTunerConstants_t ncclTunerConstantsDefaults = {
     {24.0, 23.6, 17.8}, /* Ampere (N1/N2/N4) */
     {0.0, 57.7, 45.5}, /* Hopper (N1/N2/N4) */
     {0.0, 96.0, 43.1} /* Blackwell (N1/N2/N4) */
+  },
+  .minChunkSize = {
+    {  0, 0, 0 }, { 0, 0, 0 },  // Tree, Ring
+    {  0, 0, 0 }, { 0, 0, 0 },  // Collnet Direct, Chain
+    {  0, 0, 0 }, { 0, 0, 0 },  // NVLS, NVLS Tree
+    {  0, 0, 0 }                // PAT
   }
 };
 

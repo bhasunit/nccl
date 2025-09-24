@@ -721,9 +721,11 @@ static ncclResult_t scheduleCollTasksToPlan(
     plan->groupApiEventHandle = task->groupApiEventHandle;
 
     if (comm->rank == 0) {
-      INFO(NCCL_TUNING, "%s: %ld Bytes -> Algo %s proto %s channel{Lo..Hi}={%d..%d}",
+      INFO(NCCL_TUNING, "%s: %ld Bytes -> Algo %s proto %s channel{Lo..Hi}={%d..%d} chunkBytes{Lo,Mid,Hi}={%d,%d,%d}",
         ncclFuncToString(task->func), task->count * ncclTypeSize(task->datatype), ncclAlgoToString(task->algorithm),
-        ncclProtoToString(task->protocol), devWork->channelLo, devWork->channelHi);
+        ncclProtoToString(task->protocol), devWork->channelLo, devWork->channelHi, int(devWork->cbd.chunkGrainsLo*ncclProtoGrainSize(task->protocol)),
+          int(devWork->cbd.chunkGrainsMid*ncclProtoGrainSize(task->protocol)),
+          int(devWork->cbd.chunkGrainsHi*ncclProtoGrainSize(task->protocol)));
 
       if (task->isCollnet) {
         TRACE(NCCL_COLL, "Collective %s(%s, %s, %s, %s) count=%ld devFuncId=%d channel{Lo..Hi}={%d..%d} count=%ld chunkCount=%d",
@@ -2071,6 +2073,10 @@ static ncclResult_t calcCollChunking(
   } else {
     *outDirectFlags = 0;
   }
+
+  //WARN("tuner const %f chunksize %d", comm->tunerConstants.minChunkSize[info->algorithm][info->protocol], chunkSize);
+  if (comm->tunerConstants.minChunkSize[info->algorithm][info->protocol] && chunkSize < comm->tunerConstants.minChunkSize[info->algorithm][info->protocol])
+      chunkSize = comm->tunerConstants.minChunkSize[info->algorithm][info->protocol];
 
   // Compute nSteps for proxies
   chunkSize = chunkSize / grainSize * grainSize; // align chunkSize to multiple grainSize
