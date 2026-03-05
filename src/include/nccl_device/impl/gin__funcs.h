@@ -633,7 +633,7 @@ NCCL_DEVICE_INLINE void ncclGinResetCounter(
 #if NCCL_CHECK_CUDACC
 template<unsigned beMask>
 NCCL_DEVICE_INLINE void ncclGin_BackendMask<beMask>::resetSignal(ncclGinSignal_t signal) const {
-  ncclGinCall<ncclGinApi_ResetSignal>(this->_makeCtx(), this->comm.ginSignalBase + signal);
+  ncclGinCall<ncclGinApi_ResetSignal>(this->_makeCtx(), ncclCoopThread(), this->comm.ginSignalBase + signal);
   this->_signalShadows[signal] = 0;
 }
 
@@ -642,7 +642,7 @@ NCCL_DEVICE_INLINE void ncclGinResetSignal(
     ncclGinSignal_t signal
   ) {
   ncclGinCtx ctx = ncclGin_C_makeCtx(net);
-  ncclGinCall<ncclGinApi_ResetSignal>(ctx, net->comm.ginSignalBase + signal);
+  ncclGinCall<ncclGinApi_ResetSignal>(ctx, ncclCoopThread(), net->comm.ginSignalBase + signal);
   net->_signalShadows[signal] = 0;
 }
 #endif

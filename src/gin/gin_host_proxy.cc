@@ -221,11 +221,33 @@ static int mapGfdOpToCollNetOp(ncclGinProxyGfd_t *gfd) {
   }
 }
 
+static bool isResetSignalOp(ncclGinProxyGfd_t *gfd) {
+  return (gfd->qword[ncclGinProxyGfdHeader].header.op & ncclGinProxyOpBaseMask) == ncclGinProxyOpResetSignal;
+}
+
 static ncclResult_t proxyGinProcessGfd(ncclGin_t *ginComm, void *collComm, struct ginProxyCtx *ctx,
                                        struct ginProxyHostGpuCtx *hostGpuCtx, int targetRank,
                                        ncclGinProxyGfd_t *gfd, struct ginProxyGfdState *state) {
   int signalOp;
   uint64_t signalVal;
+
+  // Handle reset signal operation
+  if (isResetSignalOp(gfd)) {
+    uint64_t signalOff = gfd->qword[ncclGinProxyGfdDstOff].dstOff.dstOff * sizeof(uint64_t);
+    void* signalBase = ctx->signalsGinHandle;
+    
+    if (ginComm->iresetSignal != NULL) {
+      NCCLCHECK(ginComm->iresetSignal(collComm, signalBase, signalOff));
+      TRACE(NCCL_NET, "GFD resetSignal completed - stateIdx: %lu, signalOff: %lu",
+            state - hostGpuCtx->states, signalOff);
+      // Mark as done immediately since it's synchronous
+      state->done = 1;
+    } else {
+      WARN("iresetSignal not supported by plugin");
+      return ncclInternalError;
+    }
+    return ncclSuccess;
+  }
 
   uint64_t size = gfd->qword[ncclGinProxyGfdHeader].header.size;
   uint64_t srcOff;

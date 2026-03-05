@@ -82,7 +82,8 @@ struct ncclGinApi_GetCounterPtr {
 
 template <ncclNetDeviceType backend>
 struct ncclGinApi_ResetSignal {
-  NCCL_DEVICE_INLINE static void call(ncclGinCtx, ncclGinSignal_t signalId);
+  template <typename Coop>
+  NCCL_DEVICE_INLINE static void call(ncclGinCtx, Coop, ncclGinSignal_t signalId);
 };
 
 template <ncclNetDeviceType backend>

@@ -296,9 +296,10 @@ ncclGin_t ncclGinIbGdaki = {
   ncclGinIbGdakiDestroyContext,
   ncclGinIbCloseColl,
   ncclIbCloseListen,
-  NULL,
-  NULL,
-  NULL,
+  NULL, // iput
+  NULL, // iputSignal
+  NULL, // iresetSignal
+  NULL, // test
   ncclGinIbGdakiProgress,
   ncclGinIbGdakiQueryLastError,
   ncclGinIbFinalize
@@ -544,17 +545,18 @@ ncclGin_t ncclGinIbProxy = {
   ncclGinIbProxyGetProperties,
   ncclIbListen,
   ncclGinIbConnect,
-  NULL,
+  NULL, // createContext
   ncclGinIbProxyRegMrSym,
   ncclGinIbProxyRegMrSymDmaBuf,
   ncclGinIbProxyDeregMrSym,
-  NULL,
+  NULL, // destroyContext
   ncclGinIbCloseColl,
   ncclIbCloseListen,
   ncclGinIbProxyIPut,
   ncclGinIbProxyIPutSignal,
+  NULL, // iresetSignal
   ncclGinIbProxyTest,
-  NULL,
-  NULL,
+  NULL, // ginProgress
+  NULL, // queryLastError
   ncclGinIbFinalize
 };

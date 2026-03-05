@@ -13,12 +13,13 @@
 
 typedef enum {
   ncclGinProxyOpPut = 1 << 0,
-  ncclGinProxyOpBaseMask = 1 << 0,
+  ncclGinProxyOpResetSignal = 1 << 5,
+  ncclGinProxyOpBaseMask = (1 << 0) | (1 << 5),
   ncclGinProxyOpWithInline = 1 << 1,
   ncclGinProxyOpWithCounter = 1 << 2,
   ncclGinProxyOpWithSignalInc = 1 << 3,
   ncclGinProxyOpWithSignalAdd = 1 << 4,
-  ncclGinProxyOpComplMask = ~ncclGinProxyOpPut,
+  ncclGinProxyOpComplMask = ~ncclGinProxyOpBaseMask,
 } ncclGinProxyOp_t;
 
 static_assert(sizeof(void *) == sizeof(uint64_t) && sizeof(size_t) == sizeof(uint64_t),

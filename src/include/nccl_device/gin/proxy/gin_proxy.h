@@ -188,10 +188,46 @@ struct ncclGinApi_GetSignalPtr<NCCL_NET_DEVICE_GIN_PROXY> {
 
 template <>
 struct ncclGinApi_ResetSignal<NCCL_NET_DEVICE_GIN_PROXY> {
-  NCCL_DEVICE_INLINE static void call(ncclGinCtx ctx, ncclGinSignal_t signalId) {
+  template <typename Coop>
+  NCCL_DEVICE_INLINE static void call(ncclGinCtx ctx, Coop coop, ncclGinSignal_t signalId) {
     ncclGinProxyGpuCtx_t* proxyCtx = (ncclGinProxyGpuCtx_t*)ctx.handle;
     uint64_t* signal = nccl::utility::loadConst(&proxyCtx->signals) + signalId;
-    *signal = 0;
+
+    // Post GFD to reset host shadow
+    postResetSignalGfd(ctx, coop, signalId);
+
+    // Flush to ensure GFD is visible to host proxy before resetting GPU memory
+    if (coop.thread_rank() == 0) {
+      nccl::gin::proxy::flush(proxyCtx, 0, cuda::memory_order_acquire);
+      *signal = 0;
+    }
+  }
+
+  template <typename Coop>
+  NCCL_DEVICE_INLINE static void postResetSignalGfd(ncclGinCtx ctx, Coop coop,
+                                                     ncclGinSignal_t signalId) {
+    ncclGinProxyGfd_t tmpDesc;
+    ncclGinProxyGfd_t* gfd = &tmpDesc;
+    ncclGinProxyGpuCtx_t* proxyCtx = (ncclGinProxyGpuCtx_t*)ctx.handle;
+
+    if (coop.thread_rank() == 0) {
+      gfd->qword[ncclGinProxyGfdHeader].header.flag = 1;
+      gfd->qword[ncclGinProxyGfdHeader].header.op = ncclGinProxyOpResetSignal;
+      gfd->qword[ncclGinProxyGfdHeader].header.size = 0;
+
+      gfd->qword[ncclGinProxyGfdDstOff].dstOff.flag = 1;
+      gfd->qword[ncclGinProxyGfdDstOff].dstOff.dstOff = (uint64_t)signalId;
+
+      // All qword flags must be set to 1 - host proxy spins on each flag
+      gfd->qword[ncclGinProxyGfdCompletion].completion.flag = 1;
+      gfd->qword[ncclGinProxyGfdDstHandle].dstHandle.flag = 1;
+      gfd->qword[ncclGinProxyGfdSrcOff].srcOff.flag = 1;
+      gfd->qword[ncclGinProxyGfdSrcHandle].srcHandle.flag = 1;
+      gfd->qword[ncclGinProxyGfdSignalVal].signalVal.flag = 1;
+      gfd->qword[ncclGinProxyGfdReserved].flag.v = 1;
+    }
+
+    nccl::gin::proxy::postGfd<Coop>(coop, proxyCtx, gfd, 0);
   }
 };
 

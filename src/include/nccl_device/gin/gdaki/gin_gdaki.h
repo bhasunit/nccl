@@ -172,7 +172,8 @@ struct ncclGinApi_ResetCounter<NCCL_NET_DEVICE_GIN_GDAKI> {
 
 template <>
 struct ncclGinApi_ResetSignal<NCCL_NET_DEVICE_GIN_GDAKI> {
-  NCCL_DEVICE_INLINE static void call(ncclGinCtx ctx, ncclGinSignal_t signalId) {
+  template <typename Coop>
+  NCCL_DEVICE_INLINE static void call(ncclGinCtx ctx, Coop coop, ncclGinSignal_t signalId) {
     using nccl::utility::loadConst;
     ncclGinGdakiGPUContext* gdaki = (ncclGinGdakiGPUContext*)ctx.handle;
     loadConst(&gdaki->signals_table.buffer)[signalId] = 0;
