@@ -53,6 +53,8 @@ struct ncclDevComm {
 
   // FT related
   uint32_t* abortFlag;
+  uint64_t* ginSignalOffsets;  // Per-context offset for reset-without-zeroing
+  uint64_t* ginCounterOffsets; // Per-context offset for reset-without-zeroing
 };
 
 #endif // _NCCL_DEVICE_COMM__TYPES_H_

@@ -62,6 +62,7 @@ enum ncclGinSignalType {
 
 struct ncclGinSignalDescriptor {
   ncclGinSignalType type;
+  uint64_t* offsetPtr;  // Caller-provided offset storage for reset-without-zeroing
   union {
     struct {
       ncclGinWindow_t signalWindow;

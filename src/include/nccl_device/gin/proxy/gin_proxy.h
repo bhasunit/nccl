@@ -237,12 +237,13 @@ template <>
 struct ncclGinApi_ResetSignal<NCCL_NET_DEVICE_GIN_PROXY> {
   NCCL_DEVICE_INLINE static void call(ncclGinCtx ctx, ncclGinSignalDescriptor signal) {
     ncclGinProxyGpuCtx_t* proxyCtx = &((ncclGinProxyGpuCtx_t*)ctx.handle)[ctx.contextId];
+    uint64_t* signalPtr;
     if (signal.type == NCCL_GIN_SIGNAL_TYPE_VA) {
-      uint64_t* signalPtr = (uint64_t*)ncclGetLocalPointer(signal.vaSignal.ncclWindow, signal.vaSignal.signalOffset);
-      *signalPtr = 0;
+      signalPtr = (uint64_t*)ncclGetLocalPointer(signal.vaSignal.ncclWindow, signal.vaSignal.signalOffset);
     } else {
-      nccl::utility::loadConst(&proxyCtx->signals)[signal.indexedSignal.signalId] = 0;
+      signalPtr = nccl::utility::loadConst(&proxyCtx->signals) + signal.indexedSignal.signalId;
     }
+    *signal.offsetPtr = cuda::atomic_ref<uint64_t>{*signalPtr}.load(cuda::memory_order_relaxed);
   }
 };
 

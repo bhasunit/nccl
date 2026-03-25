@@ -54,6 +54,8 @@ struct ncclGin_C {
   // internal:
   void* _ginHandle;
   uint64_t* _signalShadows;
+  uint64_t* _signalOffsets;
+  uint64_t* _counterOffsets;
   unsigned backendMask;
 
   NCCL_DEVICE_INLINE ncclGin_C(ncclDevComm const& comm_, unsigned backendMask_, int contextIndex);
@@ -310,7 +312,7 @@ struct ncclGin_BackendMask {
   NCCL_DEVICE_INLINE uint64_t readSignal(ncclGinSignal_t signal, int bits=64, cuda::memory_order ord = cuda::memory_order_acquire) const;
 
   // Returns current value of VA signal at given window and offset with all but bottom bits set to zero.
-  NCCL_DEVICE_INLINE uint64_t readSignal(ncclWindow_t signalWindow, size_t signalOffset, int bits=64, cuda::memory_order ord = cuda::memory_order_acquire) const;
+  NCCL_DEVICE_INLINE uint64_t readSignal(ncclWindow_t signalWindow, size_t signalOffset, uint64_t* offsetPtr, int bits=64, cuda::memory_order ord = cuda::memory_order_acquire) const;
 
   // Wait for signal to meet or exceed value.
   template<typename Coop>
@@ -318,7 +320,7 @@ struct ncclGin_BackendMask {
 
   // Wait for VA signal at given window and offset to meet or exceed value.
   template<typename Coop>
-  NCCL_DEVICE_INLINE void waitSignal(Coop, ncclWindow_t signalWindow, size_t signalOffset, uint64_t least, int bits=64, cuda::memory_order ord = cuda::memory_order_acquire) const;
+  NCCL_DEVICE_INLINE void waitSignal(Coop, ncclWindow_t signalWindow, size_t signalOffset, uint64_t* offsetPtr, uint64_t least, int bits=64, cuda::memory_order ord = cuda::memory_order_acquire) const;
 
   // Wait for signal to meet or exceed shadow value.
   template<typename Coop>
@@ -335,13 +337,15 @@ struct ncclGin_BackendMask {
   // Sets signal and shadow to zero. May not race with concurrent modifcations to signal.
   NCCL_DEVICE_INLINE void resetSignal(ncclGinSignal_t signal) const;
   // Resets a VA signal at the given window and offset.
-  NCCL_DEVICE_INLINE void resetSignal(ncclWindow_t signalWindow, size_t signalOffset) const;
+  NCCL_DEVICE_INLINE void resetSignal(ncclWindow_t signalWindow, size_t signalOffset, uint64_t* offsetPtr) const;
 
   //////////////////////////////////////////////////////////////////////////////
   // internal:
 
   void* _ginHandle;
   uint64_t* _signalShadows;
+  uint64_t* _signalOffsets;
+  uint64_t* _counterOffsets;
 
   NCCL_DEVICE_INLINE ncclGinCtx_M<backendMask> _makeCtx() const;
 };
