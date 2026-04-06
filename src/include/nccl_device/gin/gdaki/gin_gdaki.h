@@ -333,13 +333,14 @@ template <>
 struct ncclGinApi_ResetSignal<NCCL_NET_DEVICE_GIN_GDAKI> {
   NCCL_DEVICE_INLINE static void call(ncclGinCtx ctx, ncclGinSignalDescriptor signal) {
     using nccl::utility::loadConst;
+    uint64_t* signalPtr;
     if (signal.type == NCCL_GIN_SIGNAL_TYPE_VA) {
-      uint64_t* signalPtr = (uint64_t*)ncclGetLocalPointer(signal.vaSignal.ncclWindow, signal.vaSignal.signalOffset);
-      *signalPtr = 0;
+      signalPtr = (uint64_t*)ncclGetLocalPointer(signal.vaSignal.ncclWindow, signal.vaSignal.signalOffset);
     } else {
       ncclGinGdakiGPUContext* gdaki = &((struct ncclGinGdakiGPUContext*)ctx.handle)[ctx.contextId];
-      loadConst(&gdaki->signals_table.buffer)[signal.indexedSignal.signalId] = 0;
+      signalPtr = loadConst(&gdaki->signals_table.buffer) + signal.indexedSignal.signalId;
     }
+    *signal.offsetPtr = cuda::atomic_ref<uint64_t>{*signalPtr}.load(cuda::memory_order_relaxed);
   }
 };
 

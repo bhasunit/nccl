@@ -1099,6 +1099,8 @@ ncclResult_t ncclDevrCommCreateInternal(
   size_t ginSignalShadowsOffset = 0;
   void* outDevCommPreserve = nullptr;
   struct ncclDevComm outDevCommTmp;
+  size_t ginSignalOffsets = 0;
+  size_t ginCounterOffsets = 0;
 
   // This function always operates on the current version of the ncclDevResourceRequirements structure, thanks
   // to the deepCopyDevCommRequirements() function, so version checks are not needed.  The data in reqs can also
@@ -1215,6 +1217,10 @@ ncclResult_t ncclDevrCommCreateInternal(
     bufSizeTotal= alignUp(bufSizeTotal, 128);
     ginSignalShadowsOffset = bufSizeTotal;
     bufSizeTotal += nGinContexts * ginSignalTotal * sizeof(uint64_t); // include signal shadows
+    ginSignalOffsets = bufSizeTotal;
+    bufSizeTotal += nGinContexts * ginSignalTotal * sizeof(uint64_t); // signal offsets
+    ginCounterOffsets = bufSizeTotal;
+    bufSizeTotal += nGinContexts * ginCounterTotal * sizeof(uint64_t); // counter offsets
     bufSizeTotal = alignUp(bufSizeTotal, devr->granularity);
   }
 
@@ -1269,6 +1275,8 @@ ncclResult_t ncclDevrCommCreateInternal(
     NCCLCHECKGOTO(ncclShadowPoolToHost(&devr->shadows, win->vidmem, &winHost), ret, fail_stream_mem_win);
     outDevComm->resourceWindow_inlined = *winHost;
     outDevComm->ginSignalShadows = (uint64_t*)add4G((char*)winHost->lsaFlatBase + ginSignalShadowsOffset, winHost->lsaRank*winHost->stride4G);
+    outDevComm->ginSignalOffsets = (uint64_t*)add4G((char*)winHost->lsaFlatBase + ginSignalOffsets, winHost->lsaRank*winHost->stride4G);
+    outDevComm->ginCounterOffsets = (uint64_t*)add4G((char*)winHost->lsaFlatBase + ginCounterOffsets, winHost->lsaRank*winHost->stride4G);
 
     CUDACHECKGOTO(cudaMemsetAsync(win->userPtr, 0, bufSizeTotal, stream), ret, fail_stream_mem_win);
   }

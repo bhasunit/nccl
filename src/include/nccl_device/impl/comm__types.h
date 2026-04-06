@@ -54,6 +54,8 @@ struct ncclDevComm {
 
   // FT related
   uint32_t* abortFlag;
+  uint64_t* ginSignalOffsets;  // Per-context offset for reset-without-zeroing
+  uint64_t* ginCounterOffsets; // Per-context offset for reset-without-zeroing
 
   ncclLsaBarrierHandle_t hybridLsaBarrier;
   ncclGinBarrierHandle_t hybridRailGinBarrier;
