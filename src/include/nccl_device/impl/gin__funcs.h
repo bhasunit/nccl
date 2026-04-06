@@ -723,10 +723,11 @@ NCCL_DEVICE_INLINE void ncclGin_BackendMask<beMask>::waitCounter(
   uint32_t steps = 0;
   coop.sync();
   if (coop.thread_rank() == 0) {
-    uint64_t* ptr = ncclGinCall<ncclGinApi_GetCounterPtr>(this->_makeCtx(), counter);
+    auto ctr = ncclGinCall<ncclGinApi_GetCounterPtr>(this->_makeCtx(), counter);
+    least += ctr.offset;
     uint64_t got;
     #pragma unroll 1
-    do got = cuda::atomic_ref<uint64_t>{*ptr}.load(ord);
+    do got = cuda::atomic_ref<uint64_t>{*ctr.ptr}.load(ord);
     while (!nccl::utility::rollingLessEq(least, got, bits) && !testAbort(this->comm.abortFlag, steps));
   }
   coop.sync();
@@ -745,10 +746,11 @@ NCCL_DEVICE_INLINE void ncclGinWaitCounter(
   coop.sync();
   if (coop.thread_rank() == 0) {
     ncclGinCtx ctx = ncclGin_C_makeCtx(net);
-    uint64_t* ptr = ncclGinCall<ncclGinApi_GetCounterPtr>(ctx, counter);
+    auto ctr = ncclGinCall<ncclGinApi_GetCounterPtr>(ctx, counter);
+    least += ctr.offset;
     uint64_t got;
     #pragma unroll 1
-    do got = cuda::atomic_ref<uint64_t>{*ptr}.load(ord);
+    do got = cuda::atomic_ref<uint64_t>{*ctr.ptr}.load(ord);
     while (!nccl::utility::rollingLessEq(least, got, bits) && !testAbort(net->comm.abortFlag, steps));
   }
   coop.sync();
@@ -758,9 +760,10 @@ NCCL_DEVICE_INLINE void ncclGinWaitCounter(
 #if NCCL_CHECK_CUDACC
 template<unsigned beMask>
 NCCL_DEVICE_INLINE uint64_t ncclGin_BackendMask<beMask>::readCounter(ncclGinCounter_t counter, int bits, cuda::memory_order ord) const {
-  uint64_t* ptr = ncclGinCall<ncclGinApi_GetCounterPtr>(this->_makeCtx(), counter);
+  auto ctr = ncclGinCall<ncclGinApi_GetCounterPtr>(this->_makeCtx(), counter);
   uint64_t mask = uint64_t(-1)>>(64-bits);
-  return mask & cuda::atomic_ref<uint64_t>{*ptr}.load(ord);
+  uint64_t raw = cuda::atomic_ref<uint64_t>{*ctr.ptr}.load(ord);
+  return (raw - ctr.offset) & mask;
 }
 
 NCCL_DEVICE_INLINE uint64_t ncclGinReadCounter(
@@ -770,9 +773,10 @@ NCCL_DEVICE_INLINE uint64_t ncclGinReadCounter(
     cuda::memory_order ord
   ) {
   ncclGinCtx ctx = ncclGin_C_makeCtx(net);
-  uint64_t* ptr = ncclGinCall<ncclGinApi_GetCounterPtr>(ctx, counter);
+  auto ctr = ncclGinCall<ncclGinApi_GetCounterPtr>(ctx, counter);
   uint64_t mask = uint64_t(-1)>>(64-bits);
-  return mask & cuda::atomic_ref<uint64_t>{*ptr}.load(ord);
+  uint64_t raw = cuda::atomic_ref<uint64_t>{*ctr.ptr}.load(ord);
+  return (raw - ctr.offset) & mask;
 }
 #endif
 
@@ -800,9 +804,10 @@ NCCL_DEVICE_INLINE void ncclGin_BackendMask<beMask>::increaseSignalShadow(ncclGi
 #if NCCL_CHECK_CUDACC
 template<unsigned beMask>
 NCCL_DEVICE_INLINE uint64_t ncclGin_BackendMask<beMask>::readSignal(ncclGinSignal_t signal, int bits, cuda::memory_order ord) const {
-  uint64_t* ptr = ncclGinCall<ncclGinApi_GetSignalPtr>(this->_makeCtx(), signal);
+  auto sig = ncclGinCall<ncclGinApi_GetSignalPtr>(this->_makeCtx(), signal);
   uint64_t mask = uint64_t(-1)>>(64-bits);
-  return mask & cuda::atomic_ref<uint64_t>{*ptr}.load(ord);
+  uint64_t raw = cuda::atomic_ref<uint64_t>{*sig.ptr}.load(ord);
+  return (raw - sig.offset) & mask;
 }
 
 template<unsigned beMask>
@@ -819,9 +824,10 @@ NCCL_DEVICE_INLINE uint64_t ncclGinReadSignal(
     cuda::memory_order ord
   ) {
   ncclGinCtx ctx = ncclGin_C_makeCtx(net);
-  uint64_t* ptr = ncclGinCall<ncclGinApi_GetSignalPtr>(ctx, signal);
+  auto sig = ncclGinCall<ncclGinApi_GetSignalPtr>(ctx, signal);
   uint64_t mask = uint64_t(-1)>>(64-bits);
-  return mask & cuda::atomic_ref<uint64_t>{*ptr}.load(ord);
+  uint64_t raw = cuda::atomic_ref<uint64_t>{*sig.ptr}.load(ord);
+  return (raw - sig.offset) & mask;
 }
 #endif
 
@@ -954,10 +960,11 @@ NCCL_DEVICE_INLINE void ncclGin_BackendMask<beMask>::waitSignal(Coop coop, ncclG
   uint32_t steps = 0;
   coop.sync();
   if (coop.thread_rank() == 0) {
-    uint64_t* ptr = ncclGinCall<ncclGinApi_GetSignalPtr>(this->_makeCtx(), signal);
+    auto sig = ncclGinCall<ncclGinApi_GetSignalPtr>(this->_makeCtx(), signal);
+    least = least + sig.offset;
     uint64_t got;
     #pragma unroll 1
-    do got = cuda::atomic_ref<uint64_t>{*ptr}.load(ord);
+    do got = cuda::atomic_ref<uint64_t>{*sig.ptr}.load(ord);
     while (!nccl::utility::rollingLessEq(least, got, bits) && !testAbort(this->comm.abortFlag, steps));
   }
   coop.sync();
@@ -994,10 +1001,11 @@ NCCL_DEVICE_INLINE void ncclGinWaitSignal(
   coop.sync();
   if (coop.thread_rank() == 0) {
     ncclGinCtx ctx = ncclGin_C_makeCtx(net);
-    uint64_t* ptr = ncclGinCall<ncclGinApi_GetSignalPtr>(ctx, signal);
+    auto sig = ncclGinCall<ncclGinApi_GetSignalPtr>(ctx, signal);
+    least = least + sig.offset;
     uint64_t got;
     #pragma unroll 1
-    do got = cuda::atomic_ref<uint64_t>{*ptr}.load(ord);
+    do got = cuda::atomic_ref<uint64_t>{*sig.ptr}.load(ord);
     while (!nccl::utility::rollingLessEq(least, got, bits) && !testAbort(net->comm.abortFlag, steps));
   }
   coop.sync();
@@ -1012,11 +1020,11 @@ NCCL_DEVICE_INLINE void ncclGin_BackendMask<beMask>::waitSignalMeetShadow(Coop c
   uint32_t steps = 0;
   coop.sync();
   if (coop.thread_rank() == 0) {
-    uint64_t* ptr = ncclGinCall<ncclGinApi_GetSignalPtr>(this->_makeCtx(), signal);
-    uint64_t least = this->_signalShadows[signal];
+    auto sig = ncclGinCall<ncclGinApi_GetSignalPtr>(this->_makeCtx(), signal);
+    uint64_t least = this->_signalShadows[signal] + sig.offset;
     uint64_t got;
     #pragma unroll 1
-    do got = cuda::atomic_ref<uint64_t>{*ptr}.load(ord);
+    do got = cuda::atomic_ref<uint64_t>{*sig.ptr}.load(ord);
     while (!nccl::utility::rollingLessEq(least, got, bits) && !testAbort(this->comm.abortFlag, steps));
   }
   coop.sync();
@@ -1033,10 +1041,14 @@ NCCL_DEVICE_INLINE void ncclGin_BackendMask<beMask>::waitSignalFollowShadow(Coop
   uint64_t before64 = this->_signalShadows[signal];
   uint64_t after64;
   if (coop.thread_rank() == 0) {
-    uint64_t* ptr = ncclGinCall<ncclGinApi_GetSignalPtr>(this->_makeCtx(), signal);
+    auto sig = ncclGinCall<ncclGinApi_GetSignalPtr>(this->_makeCtx(), signal);
+    uint64_t offset = sig.offset;
+    uint64_t least = before64 + leastDelta + offset;
     #pragma unroll 1
-    do after64 = cuda::atomic_ref<uint64_t>{*ptr}.load(ord);
-    while (!nccl::utility::rollingLessEq(before64 + leastDelta, after64, bits) && !testAbort(this->comm.abortFlag, steps));
+    do after64 = cuda::atomic_ref<uint64_t>{*sig.ptr}.load(ord);
+    while (!nccl::utility::rollingLessEq(least, after64, bits) && !testAbort(this->comm.abortFlag, steps));
+    // Convert NIC value back to logical space for shadow
+    after64 = after64 - offset;
     this->_signalShadows[signal] = after64;
   }
   if (ncclCoopWithinWarp(coop) && bits <= 32) { // do a single __shfl_sync instead of 2
