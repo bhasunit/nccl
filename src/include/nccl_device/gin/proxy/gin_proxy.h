@@ -28,12 +28,31 @@ NCCL_DEVICE_INLINE void flush(ncclGinProxyGpuCtx_t* proxyCtx, uint32_t pe, cuda:
   using nccl::utility::testAbort;
   cuda::atomic_ref<uint32_t, cuda::thread_scope_system> pi(loadConst(&proxyCtx->pis)[pe]);
   cuda::atomic_ref<uint32_t, cuda::thread_scope_system> ci(loadConst(&proxyCtx->cis)[pe]);
+  ncclGinProxyGfd_t* q = &loadConst(&proxyCtx->queues)[pe * proxyCtx->queueSize];
+  uint32_t queueSize = loadConst(&proxyCtx->queueSize);
   uint32_t steps = 0;
-  // The PI and CI can keep moving because of concurrent threads posting GFDs to this queue, and the CPU consuming them.
-  // Therefore, to prevent overflow issues in the while statement, we need to use a special comparison function.
+
   uint32_t p = pi.load(cuda::memory_order_relaxed);
+
+  // Post a flush GFD so the proxy knows to wait for all preceding puts to complete
+  uint32_t idx = pi.fetch_add(1, cuda::memory_order_relaxed);
+  while (queueSize <= idx - ci.load(cuda::memory_order_relaxed)) { }
+  uint32_t slot = idx & (queueSize - 1);
+  ncclGinProxyGfd_t flushGfd;
+  memset(&flushGfd, 0, sizeof(flushGfd));
+  for (int k = 0; k < ncclGinProxyGfdQwords; k++)
+    flushGfd.qword[k].flag.v = 1;
+  flushGfd.qword[ncclGinProxyGfdHeader].header.flag = 1;
+  flushGfd.qword[ncclGinProxyGfdHeader].header.op = ncclGinProxyOpFlush;
+#pragma unroll
+  for (uint8_t i = 0; i < 4; i++) {
+    __stwt((uint4*)&q[slot] + i, ((uint4*)&flushGfd)[i]);
+  }
+
+  // Wait for CI to advance past our flush GFD
+  uint32_t target = idx + 1;
 #pragma unroll 1
-  while (!rollingLessEq<uint32_t>(p, ci.load(ord)) && !testAbort(abortFlag, steps)) continue;
+  while (!rollingLessEq<uint32_t>(target, ci.load(ord)) && !testAbort(abortFlag, steps)) continue;
 }
 
 template <typename Coop>

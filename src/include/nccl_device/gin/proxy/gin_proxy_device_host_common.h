@@ -14,7 +14,8 @@
 
 typedef enum {
   ncclGinProxyOpPut = 1 << 0,
-  ncclGinProxyOpBaseMask = 1 << 0,
+  ncclGinProxyOpFlush = 1 << 5,
+  ncclGinProxyOpBaseMask = (1 << 0) | (1 << 5),
   ncclGinProxyOpWithInline = 1 << 1,
   ncclGinProxyOpWithCounter = 1 << 2,
   ncclGinProxyOpWithSignalInc = 1 << 3,

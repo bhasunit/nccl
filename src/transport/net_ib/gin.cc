@@ -394,6 +394,7 @@ ncclGin_t ncclGinIbGdaki = {
   NULL,
   NULL,
   NULL,
+  NULL,
   ncclGinIbGdakiProgress,
   ncclGinIbGdakiQueryLastError,
   ncclGinIbFinalize
@@ -671,6 +672,7 @@ ncclGin_t ncclGinIbProxy = {
   ncclGinIbProxyIPut,
   ncclGinIbProxyIPutSignal,
   ncclGinIbProxyTest,
+  NULL,
   NULL,
   NULL,
   ncclGinIbFinalize
