@@ -59,14 +59,14 @@ static ncclResult_t ncclRmaProxyPollNonPersistDesc(ncclGin_t *ncclGin, struct nc
         NCCLCHECK(ncclGin->iput(ctx->ginCtx, 0,
           pendingDesc->putSignal.srcOff, pendingDesc->putSignal.srcHandle, pendingDesc->putSignal.size,
           pendingDesc->putSignal.dstOff, pendingDesc->putSignal.dstHandle,
-          pendingDesc->putSignal.targetRank, &pendingDesc->putSignal.request));
+          pendingDesc->putSignal.targetRank, 0, &pendingDesc->putSignal.request));
       } else {
         // Signal operation needed
         NCCLCHECK(ncclGin->iputSignal(ctx->ginCtx, 0,
           pendingDesc->putSignal.srcOff, pendingDesc->putSignal.srcHandle, pendingDesc->putSignal.size,
           pendingDesc->putSignal.dstOff, pendingDesc->putSignal.dstHandle,
           pendingDesc->putSignal.targetRank, pendingDesc->putSignal.signal.offset, pendingDesc->putSignal.signal.signalMhandle,
-          pendingDesc->putSignal.signal.val, pendingDesc->putSignal.signal.op, &pendingDesc->putSignal.request));
+          pendingDesc->putSignal.signal.val, pendingDesc->putSignal.signal.op, 0, &pendingDesc->putSignal.request));
       }
 
       // Enqueue to InProgress queue (no lock needed - progress thread only)
@@ -90,7 +90,7 @@ static ncclResult_t ncclRmaProxyFlushNicGpuPath(ncclGin_t *ncclGin, struct ncclR
   void* request = NULL;
   size_t flushOff = (size_t)ctx->comm->rank * sizeof(uint64_t);
   NCCLCHECK(ncclGin->iput(ctx->ginCtx, 0, flushOff, ctx->flushBufMhandle, sizeof(uint64_t),
-            flushOff, ctx->flushBufMhandle, ctx->comm->rank, &request));
+            flushOff, ctx->flushBufMhandle, ctx->comm->rank, 0, &request));
   int done = 0;
   while (!done) {
     NCCLCHECK(ncclGin->test(ctx->ginCollComm, request, &done));
@@ -117,13 +117,13 @@ static ncclResult_t ncclRmaProxyPollPersistDesc(ncclGin_t *ncclGin, struct ncclR
             NCCLCHECK(ncclGin->iput(ctx->ginCtx, 0,
               desc->putSignal.srcOff, desc->putSignal.srcHandle, desc->putSignal.size,
               desc->putSignal.dstOff, desc->putSignal.dstHandle,
-              desc->putSignal.targetRank, &desc->putSignal.request));
+              desc->putSignal.targetRank, 0, &desc->putSignal.request));
           } else {
             NCCLCHECK(ncclGin->iputSignal(ctx->ginCtx, 0,
               desc->putSignal.srcOff, desc->putSignal.srcHandle, desc->putSignal.size,
               desc->putSignal.dstOff, desc->putSignal.dstHandle,
               desc->putSignal.targetRank, desc->putSignal.signal.offset, desc->putSignal.signal.signalMhandle,
-              desc->putSignal.signal.val, desc->putSignal.signal.op, &desc->putSignal.request));
+              desc->putSignal.signal.val, desc->putSignal.signal.op, 0, &desc->putSignal.request));
           }
 
           desc->rmaDescState = ncclRmaDescStateInProgress;

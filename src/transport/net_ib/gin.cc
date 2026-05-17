@@ -521,7 +521,7 @@ ncclResult_t ncclGinIbProxyCloseColl(void* collComm) {
 
 ncclResult_t ncclGinIbProxyIPut(void *ginCtx, int context, uint64_t srcOff, void *srcMhandle, size_t size,
                                 uint64_t dstOff, void *dstMhandle, uint32_t rank,
-                                void **request) {
+                                uint32_t flags, void **request) {
   struct ncclGinIbProxyCtx* ginProxyCtx = &((struct ncclGinIbProxyCtx*)ginCtx)[context];
 
   struct ncclIbGinProxyMrHandle *srcMrHandle = (struct ncclIbGinProxyMrHandle *)srcMhandle;
@@ -626,7 +626,7 @@ ncclResult_t ncclGinIbProxyIGet(void *ginCtx, int context, uint64_t remoteOffset
 ncclResult_t ncclGinIbProxyIPutSignal(void *ginCtx, int context, uint64_t srcOff, void *srcMhandle,
                                       size_t size, uint64_t dstOff, void *dstMhandle, uint32_t rank,
                                       uint64_t signalOff, void *signalMhandle, uint64_t signalValue,
-                                      uint32_t signalOp, void **request) {
+                                      uint32_t signalOp, uint32_t /*flags*/, void **request) {
   if (signalOp != NCCL_NET_SIGNAL_OP_INC && signalOp != NCCL_NET_SIGNAL_OP_ADD) {
     WARN("ncclGinIbProxyIPutSignal: Unsupported signalOp %u", signalOp);
     return ncclInvalidArgument;

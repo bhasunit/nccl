@@ -47,7 +47,7 @@ static ncclResult_t ncclGin_iflush(void* ginCtx, int context, void* mhandle, uin
 }
 
 static ncclResult_t ncclGin_iput(void* ginCtx, int context, uint64_t srcOff, void* srcMhandle, size_t size,
-    uint64_t dstOff, void* dstMhandle, uint32_t rank, void** request) {
+    uint64_t dstOff, void* dstMhandle, uint32_t rank, uint32_t /*flags*/, void** request) {
   if (context != 0) {
     WARN("GIN plugin v12 does not support multiple contexts");
     return ncclInvalidUsage;
@@ -57,7 +57,7 @@ static ncclResult_t ncclGin_iput(void* ginCtx, int context, uint64_t srcOff, voi
 
 static ncclResult_t ncclGin_iputSignal(void* ginCtx, int context, uint64_t srcOff, void* srcMhandle,
     size_t size, uint64_t dstOff, void* dstMhandle, uint32_t rank, uint64_t signalOff, void *signalMhandle,
-    uint64_t signalValue, uint32_t signalOp, void** request) {
+    uint64_t signalValue, uint32_t signalOp, uint32_t /*flags*/, void** request) {
   if (context != 0) {
     WARN("GIN plugin v12 does not support multiple connections");
     return ncclInvalidUsage;

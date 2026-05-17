@@ -229,16 +229,19 @@ static ncclResult_t proxyGinProcessGfd(struct ginProxyCtx *ctx,
                                        ncclGinProxyGfd_t *gfd, struct ginProxyGfdState *state) {
   int signalOp;
   uint64_t signalVal;
+  ncclGinProxyOp_t op = extractOp(gfd);
+  bool isAggregate = !!(op & ncclGinProxyOpAggregate);
+  uint32_t ginFlags = isAggregate ? 1 : 0;
 
   // Handle VA Signal operations (signal-only, no PUT)
-  if (extractOp(gfd) & ncclGinProxyOpVASignal) {
+  if (op & ncclGinProxyOpVASignal) {
     uint64_t signalOff = gfd->qword[ncclGinProxyGfdVASignalOff].vaSignalOff.vaSignalOff;
     void *signalHandle = (void *)(uint64_t)gfd->qword[ncclGinProxyGfdVASignalHandle].vaSignalHandle.vaSignalHandle;
     signalVal = extractSignalVal(gfd);
     signalOp = mapGfdOpToSignalOp(gfd);
     NCCLCHECK(ginBackend->iputSignal(ctx->ginCtx, hostGpuCtx->contextId, 0, nullptr, 0, 0, nullptr,
                                   targetRank, signalOff, signalHandle, signalVal,
-                                  signalOp, &state->request));
+                                  signalOp, ginFlags, &state->request));
     return ncclSuccess;
   }
 
@@ -289,14 +292,12 @@ static ncclResult_t proxyGinProcessGfd(struct ginProxyCtx *ctx,
   uint64_t dstOff = gfd->qword[ncclGinProxyGfdDstOff].dstOff.dstOff;
   void *dstHandle = (void *)(uint64_t)gfd->qword[ncclGinProxyGfdDstHandle].dstHandle.dstHandle;
 
-  ncclGinProxyOp_t op = extractOp(gfd);
   switch (op & ncclGinProxyOpBaseMask) {
     case ncclGinProxyOpPut:
       signalOp = mapGfdOpToSignalOp(gfd);
       if (signalOp == -1) {
-        // First cast from 63 bits to 64 bits and then to void * to avoid warnings
         NCCLCHECK(ginBackend->iput(ctx->ginCtx, hostGpuCtx->contextId, srcOff, srcHandle, size, dstOff, dstHandle,
-                                targetRank, &state->request));
+                                targetRank, ginFlags, &state->request));
       } else {
         // Reconstruct the signal value
         signalVal = extractSignalVal(gfd);
@@ -304,7 +305,7 @@ static ncclResult_t proxyGinProcessGfd(struct ginProxyCtx *ctx,
                               hostGpuCtx->contextId * ctx->nSignalsPerContext) * sizeof(uint64_t);
         NCCLCHECK(ginBackend->iputSignal(ctx->ginCtx, hostGpuCtx->contextId, srcOff, srcHandle, size, dstOff, dstHandle,
                                       targetRank, signalOff, ctx->signalsGinHandle, signalVal,
-                                      signalOp, &state->request));
+                                      signalOp, ginFlags, &state->request));
       }
       break;
     default:

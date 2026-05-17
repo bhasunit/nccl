@@ -23,6 +23,7 @@ typedef enum {
   ncclGinProxyOpVASignal = 1 << 5, // VA signals do not include put.
   ncclGinProxyOpGet = 1 << 6,
   ncclGinProxyOpFlush = 1 << 7,
+  ncclGinProxyOpAggregate = 1 << 8,
 } ncclGinProxyOp_t;
 
 static_assert(sizeof(void *) == sizeof(uint64_t) && sizeof(size_t) == sizeof(uint64_t),

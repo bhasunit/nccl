@@ -131,8 +131,10 @@ __device__ __forceinline__ void buildGfd(ncclGinProxyGfd_t* gfd, ncclGinProxyOp_
 
 __device__ __forceinline__ void constructProxyOp(ncclGinProxyOp_t& op, bool isGet, bool isFlush, bool hasInline,
                                                  ncclGinSignalType signalType, ncclGinSignalOp_t signalOp,
-                                                 bool hasCounter) {
+                                                 bool hasCounter, bool isAggregate = false) {
   op = (ncclGinProxyOp_t)(0);
+  if (isAggregate)
+    op = static_cast<ncclGinProxyOp_t>(static_cast<uint16_t>(op) | static_cast<uint16_t>(ncclGinProxyOpAggregate));
   if (isGet) {
     op = static_cast<ncclGinProxyOp_t>(static_cast<uint16_t>(op) | static_cast<uint16_t>(ncclGinProxyOpGet));
     return;
@@ -194,15 +196,17 @@ NCCL_DEVICE_INLINE void put(Coop coop, ncclGinProxyGfd_t* gfd, ncclGinProxyGpuCt
                             bool hasInline, ncclGinWindow_t srcWnd, size_t srcOff, size_t bytes,
                             ncclGinSignalDescriptor signal, ncclGinSignalOp_t signalOp,
                             uint64_t signalVal, bool hasCounter, ncclGinCounter_t counterId,
-                            cuda::thread_scope required, cuda::thread_scope given) {
+                            cuda::thread_scope required, cuda::thread_scope given,
+                            uint32_t optFlags = ncclGinOptFlagsDefault) {
   if ((int)given > (int)cuda::thread_scope_system) {
     cuda::atomic_thread_fence(cuda::memory_order_release, cuda::thread_scope_system);
   }
 
   using nccl::gin::proxy::DataChunkSize;
+  const bool isAggregate = !!(optFlags & ncclGinOptFlagsAggregateRequests);
   while (bytes > DataChunkSize) {
     ncclGinProxyOp_t op;
-    constructProxyOp(op, /*isGet*/false, /*isFlush*/false, /*hasInline*/false, NCCL_GIN_SIGNAL_TYPE_NONE, signalOp, /*hasCounter*/false);
+    constructProxyOp(op, /*isGet*/false, /*isFlush*/false, /*hasInline*/false, NCCL_GIN_SIGNAL_TYPE_NONE, signalOp, /*hasCounter*/false, isAggregate);
     nccl::gin::proxy::buildGfd(gfd, op, /*srcVal*/0, /*hasInline*/false, srcOff, srcWnd,
                                dstOff, dstWnd, DataChunkSize, /*counterId*/0, /*signalId*/0,
                                /*signalVal*/0, nullptr, 0);
@@ -232,7 +236,7 @@ NCCL_DEVICE_INLINE void put(Coop coop, ncclGinProxyGfd_t* gfd, ncclGinProxyGpuCt
   }
   if (hasInline || hasCounter || srcWnd != nullptr || putSignalType != NCCL_GIN_SIGNAL_TYPE_NONE) {
     ncclGinProxyOp_t op;
-    constructProxyOp(op, /*isGet*/false, /*isFlush*/false, hasInline, putSignalType, signalOp, hasCounter);
+    constructProxyOp(op, /*isGet*/false, /*isFlush*/false, hasInline, putSignalType, signalOp, hasCounter, isAggregate);
     nccl::gin::proxy::buildGfd(gfd, op, srcVal, hasInline, srcOff, srcWnd, dstOff, dstWnd, bytes,
                               hasCounter ? counterId : 0, putSignalId, putSignalVal, nullptr, 0);
     nccl::gin::proxy::postGfd<Coop>(coop, proxyCtx, gfd, peer);
@@ -367,7 +371,7 @@ struct ncclGinApi_Put<NCCL_NET_DEVICE_GIN_PROXY> {
     ncclGinProxyGpuCtx_t* proxyCtx = &((ncclGinProxyGpuCtx_t*)ctx.handle)[ctx.contextId];
     nccl::gin::proxy::put<Coop, uint64_t>(coop, desc, proxyCtx, peer, dstWin, dstOff, 0, false,
                                           srcWin, srcOff, bytes, signal, signalOp, signalOpArg,
-                                          hasCounter, counterId, required, given);
+                                          hasCounter, counterId, required, given, optFlags);
   }
 };
 
